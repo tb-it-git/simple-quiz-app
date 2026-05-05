@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Score Board</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #273549; --border: #334155;
+    --accent: #6366f1; --accent-hover: #818cf8; --success: #22c55e; --error: #ef4444;
+    --warning: #f59e0b; --gold: #fbbf24; --silver: #cbd5e1; --bronze: #d97706;
+    --text: #f1f5f9; --text-muted: #94a3b8; --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .header { text-align: center; margin-bottom: 40px; }
+  .header .logo { font-size: 60px; margin-bottom: 10px; }
+  .header h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 6px; letter-spacing: -.02em; }
+  .header .subtitle { color: var(--text-muted); font-size: 1.1rem; }
+
+  .status-bar { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+  .status-pill { padding: 8px 18px; border-radius: 30px; font-size: .95rem; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .status-pill.live { background: #052e16; color: var(--success); border: 1px solid var(--success); }
+  .status-pill.expired { background: #2d0e0e; color: var(--error); border: 1px solid var(--error); }
+  .status-pill.published { background: #1e1f4b; color: #a5b4fc; border: 1px solid var(--accent); }
+  .status-pill.pending { background: #2d1f00; color: var(--warning); border: 1px solid var(--warning); }
+  .status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity:.4 } 50% { opacity:1 } }
+
+  /* Pre-publish: clean alias list */
+  .participants-section h2 { text-align: center; font-size: 1.3rem; color: var(--text-muted); font-weight: 600; margin-bottom: 20px; letter-spacing: .04em; text-transform: uppercase; }
+  .alias-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .alias-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; display: flex; align-items: center; gap: 14px; transition: transform .3s ease, border-color .3s ease; animation: fadeIn .5s ease; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
+  .alias-card.new { border-color: var(--success); animation: fadeIn .5s ease, glow 2s ease 1; }
+  @keyframes glow { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,.6); } 100% { box-shadow: 0 0 0 12px rgba(34,197,94,0); } }
+  .alias-card .check { width: 32px; height: 32px; border-radius: 50%; background: var(--success); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+  .alias-card .name { font-size: 1.1rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .empty { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+  .empty .icon { font-size: 64px; margin-bottom: 14px; }
+  .empty h3 { font-size: 1.4rem; margin-bottom: 6px; color: var(--text); }
+
+  /* Ranking (after publish) */
+  .ranking { display: flex; flex-direction: column; gap: 10px; }
+  .rank-row { display: grid; grid-template-columns: 72px 1fr auto; align-items: center; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 24px; transition: transform .2s; }
+  .rank-row:hover { transform: translateX(4px); border-color: var(--accent); }
+  .rank-row.rank-1 { background: linear-gradient(90deg, rgba(251,191,36,.12), var(--surface)); border-color: var(--gold); }
+  .rank-row.rank-2 { background: linear-gradient(90deg, rgba(203,213,225,.08), var(--surface)); border-color: var(--silver); }
+  .rank-row.rank-3 { background: linear-gradient(90deg, rgba(217,119,6,.1), var(--surface)); border-color: var(--bronze); }
+  .rank-position { font-size: 2rem; font-weight: 800; text-align: center; color: var(--text-muted); }
+  .rank-row.rank-1 .rank-position { color: var(--gold); }
+  .rank-row.rank-2 .rank-position { color: var(--silver); }
+  .rank-row.rank-3 .rank-position { color: var(--bronze); }
+  .rank-alias { font-size: 1.4rem; font-weight: 700; }
+  .rank-score { font-size: 1.8rem; font-weight: 800; color: var(--accent); text-align: right; }
+  .rank-score small { display: block; color: var(--text-muted); font-size: .75rem; font-weight: 500; margin-top: 2px; }
+
+  .footer { text-align: center; margin-top: 50px; color: var(--text-muted); font-size: .82rem; }
+  .refresh-info { display: inline-flex; align-items: center; gap: 6px; }
+  .refresh-info .spinner { width: 10px; height: 10px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .err { background: #2d0e0e; color: var(--error); border: 1px solid var(--error); padding: 20px; border-radius: var(--radius); text-align: center; margin: 40px auto; max-width: 500px; }
+
+  /* Large screen optimization */
+  @media (min-width: 1400px) {
+    .wrap { max-width: 1400px; padding: 48px 32px; }
+    .header h1 { font-size: 3rem; }
+    .rank-alias { font-size: 1.6rem; }
+    .rank-score { font-size: 2.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="header">
+    <div class="logo">🏆</div>
+    <h1 id="quiz-name">Score Board</h1>
+    <div class="subtitle" id="quiz-subtitle"></div>
+  </div>
+
+  <div class="status-bar" id="status-bar"></div>
+
+  <div id="content"></div>
+
+  <div class="footer">
+    <span class="refresh-info"><span class="spinner"></span> Aktualisiert alle 5 Sekunden</span>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const quizId = params.get('quiz');
+let knownAliases = new Set();
+let hasError = false;
+
+function escHtml(s) { return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function refresh() {
+  if (!quizId) {
+    document.getElementById('content').innerHTML = `<div class="err">❌ Kein Quiz angegeben. URL muss <code>?quiz=ID</code> enthalten.</div>`;
+    return;
+  }
+  try {
+    const res = await fetch(`/api/scoreboard?quiz_id=${encodeURIComponent(quizId)}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      document.getElementById('content').innerHTML = `<div class="err">❌ ${err.error || 'Quiz nicht gefunden'}</div>`;
+      hasError = true;
+      return;
+    }
+    hasError = false;
+    const data = await res.json();
+    render(data);
+  } catch(e) {
+    if (!hasError) {
+      document.getElementById('content').innerHTML = `<div class="err">⚠️ Verbindungsfehler – versuche es gleich erneut...</div>`;
+    }
+  }
+}
+
+function render(data) {
+  const { quiz, participants } = data;
+  const published = !!quiz.results_published;
+  const deadline = quiz.deadline ? new Date(quiz.deadline) : null;
+  const now = new Date();
+  const deadlinePassed = deadline && now > deadline;
+
+  document.getElementById('quiz-name').textContent = quiz.name;
+
+  // Subtitle with deadline info
+  let subtitle = '';
+  if (deadline) {
+    const dl = deadline.toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    subtitle = deadlinePassed ? `Teilnahme endete am ${dl}` : `Teilnahme bis ${dl}`;
+  }
+  document.getElementById('quiz-subtitle').textContent = subtitle;
+
+  // Status bar
+  const sb = document.getElementById('status-bar');
+  let pills = '';
+  if (published) {
+    pills += `<div class="status-pill published">✅ Ergebnisse veröffentlicht</div>`;
+  } else if (deadlinePassed) {
+    pills += `<div class="status-pill pending">⏳ Warten auf Auswertung</div>`;
+  } else if (deadline) {
+    pills += `<div class="status-pill live"><span class="dot"></span> Teilnahme läuft</div>`;
+  } else {
+    pills += `<div class="status-pill live"><span class="dot"></span> Teilnahme offen</div>`;
+  }
+  pills += `<div class="status-pill" style="background:var(--surface);border:1px solid var(--border);color:var(--text-muted)">👥 ${participants.length} abgegeben</div>`;
+  sb.innerHTML = pills;
+
+  // Content
+  const content = document.getElementById('content');
+  if (participants.length === 0) {
+    content.innerHTML = `<div class="empty">
+      <div class="icon">⏳</div>
+      <h3>Noch keine Einsendungen</h3>
+      <p>Sobald Teilnehmer alle Fragen beantwortet haben, erscheinen sie hier.</p>
+    </div>`;
+    return;
+  }
+
+  if (published) {
+    // Ranking view
+    // Compute ranks (ties get same rank)
+    let lastScore = null, lastRank = 0;
+    const ranked = participants.map((p, i) => {
+      const rank = (p.score !== lastScore) ? (i + 1) : lastRank;
+      lastScore = p.score; lastRank = rank;
+      return { ...p, rank };
+    });
+
+    const rows = ranked.map(p => {
+      const rankClass = p.rank <= 3 ? `rank-${p.rank}` : '';
+      const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `#${p.rank}`;
+      const italic = p.has_alias === false ? 'style="font-style:italic;opacity:.8"' : '';
+      return `<div class="rank-row ${rankClass}">
+        <div class="rank-position">${medal}</div>
+        <div class="rank-alias" ${italic}>${escHtml(p.alias)}</div>
+        <div class="rank-score">${p.score} / ${p.scorable_total}<small>Punkte</small></div>
+      </div>`;
+    }).join('');
+
+    content.innerHTML = `<div class="ranking">${rows}</div>`;
+    knownAliases = new Set(participants.map(p => p.alias));
+  } else {
+    // Pre-publish: alias list (order by completion = server order)
+    const currentAliases = new Set(participants.map(p => p.alias));
+    const isFirstRender = knownAliases.size === 0;
+
+    const cards = participants.map(p => {
+      const isNew = !isFirstRender && !knownAliases.has(p.alias);
+      const italic = p.has_alias === false ? 'style="font-style:italic;opacity:.8"' : '';
+      return `<div class="alias-card ${isNew ? 'new' : ''}">
+        <div class="check">✓</div>
+        <div class="name" ${italic}>${escHtml(p.alias)}</div>
+      </div>`;
+    }).join('');
+
+    content.innerHTML = `<div class="participants-section">
+      <h2>Abgegeben</h2>
+      <div class="alias-grid">${cards}</div>
+    </div>`;
+
+    knownAliases = currentAliases;
+  }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

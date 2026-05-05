@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #273549; --border: #334155;
+    --accent: #6366f1; --accent-hover: #818cf8; --success: #22c55e; --error: #ef4444;
+    --warning: #f59e0b; --text: #f1f5f9; --text-muted: #94a3b8; --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  #token-gate, #alias-gate { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+  .gate-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 48px 40px; max-width: 440px; width: 100%; text-align: center; }
+  .gate-card .logo { font-size: 48px; margin-bottom: 16px; }
+  .gate-card h1 { font-size: 1.8rem; margin-bottom: 8px; }
+  .gate-card p { color: var(--text-muted); margin-bottom: 32px; }
+  .input-group { display: flex; gap: 8px; }
+  .input-group input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; color: var(--text); font-size: 1rem; outline: none; transition: border-color .2s; }
+  .input-group input:focus { border-color: var(--accent); }
+  .btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-size: 1rem; cursor: pointer; transition: background .2s; }
+  .btn:hover { background: var(--accent-hover); }
+  .btn-link { background: none; border: none; color: var(--text-muted); font-size: .88rem; cursor: pointer; margin-top: 14px; padding: 4px; text-decoration: underline; }
+  .btn-link:hover { color: var(--text); }
+  .error-msg { color: var(--error); margin-top: 12px; font-size: .9rem; }
+
+  #quiz-app { display: none; min-height: 100vh; }
+  .top-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 10; }
+  .brand { font-size: 1.1rem; font-weight: 700; }
+  .top-right { display: flex; align-items: center; gap: 12px; font-size: .85rem; color: var(--text-muted); }
+  .score-badge { background: var(--accent); color: #fff; padding: 4px 12px; border-radius: 20px; font-size: .85rem; font-weight: 600; }
+
+  /* DEADLINE BANNER */
+  .deadline-banner { padding: 10px 24px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: .9rem; font-weight: 500; }
+  .deadline-banner.active { background: #1a2540; border-bottom: 1px solid #2563eb; color: #60a5fa; }
+  .deadline-banner.warning { background: #2d1f00; border-bottom: 1px solid var(--warning); color: var(--warning); }
+  .deadline-banner.passed { background: #2d0e0e; border-bottom: 1px solid var(--error); color: var(--error); }
+  .deadline-banner.published { background: #052e16; border-bottom: 1px solid var(--success); color: var(--success); }
+
+  .quiz-container { max-width: 760px; margin: 0 auto; padding: 32px 20px; }
+  .progress-wrap { margin-bottom: 32px; }
+  .progress-label { display: flex; justify-content: space-between; color: var(--text-muted); font-size: .85rem; margin-bottom: 8px; }
+  .progress-bar { height: 6px; background: var(--border); border-radius: 10px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 10px; transition: width .4s ease; }
+
+  .question-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; margin-bottom: 16px; }
+  .question-card.locked { opacity: .45; pointer-events: none; }
+  .question-card.locked-banner { position: relative; }
+  .question-number { color: var(--accent); font-size: .85rem; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .05em; }
+  .question-text { font-size: 1.2rem; font-weight: 600; margin-bottom: 24px; line-height: 1.5; }
+
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .option { background: var(--surface2); border: 2px solid var(--border); border-radius: 10px; padding: 14px 18px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: border-color .2s, background .2s; font-size: 1rem; }
+  .option:hover:not(.disabled) { border-color: var(--accent); background: #2d3f5e; }
+  .option.selected { border-color: var(--accent); background: #1e2d4d; }
+  .option.correct { border-color: var(--success); background: #052e16; }
+  .option.wrong { border-color: var(--error); background: #2d0e0e; }
+  .option.disabled { cursor: default; }
+  .option-letter { width: 28px; height: 28px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0; }
+  .option.correct .option-letter { background: var(--success); color: #fff; }
+  .option.wrong .option-letter { background: var(--error); color: #fff; }
+  .option.selected:not(.correct):not(.wrong) .option-letter { background: var(--accent); color: #fff; }
+
+  .free-text-input, .number-input {
+    width: 100%; background: var(--bg); border: 2px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; color: var(--text); font-size: 1rem; outline: none; font-family: inherit; transition: border-color .2s;
+  }
+  .free-text-input { resize: vertical; min-height: 80px; }
+  .number-input { max-width: 260px; }
+  .free-text-input:focus, .number-input:focus { border-color: var(--accent); }
+  .free-text-input:disabled, .number-input:disabled { opacity: .6; cursor: default; }
+  .number-hint { color: var(--text-muted); font-size: .82rem; margin-top: 6px; }
+
+  .feedback { padding: 12px 16px; border-radius: 8px; margin-top: 16px; font-size: .95rem; font-weight: 500; display: block; }
+  .feedback.neutral { background: #1a2540; color: var(--text-muted); border: 1px solid var(--border); }
+  .feedback.correct { background: #052e16; color: var(--success); border: 1px solid var(--success); }
+  .feedback.wrong { background: #2d0e0e; color: var(--error); border: 1px solid var(--error); }
+  .feedback.info { background: #1a2d1a; color: #60a5fa; border: 1px solid #2563eb; }
+
+  .btn-confirm { margin-top: 16px; width: 100%; padding: 13px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .2s, opacity .2s; }
+  .btn-confirm:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn-confirm:disabled { opacity: .35; cursor: default; }
+
+  .type-badge { display: inline-block; font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-right: 6px; }
+  .type-badge.multiple_choice { background: #1e1f4b; color: #a5b4fc; border: 1px solid #4f46e5; }
+  .type-badge.free_text { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; }
+  .type-badge.estimation { background: #2d1f00; color: #fbbf24; border: 1px solid #d97706; }
+
+  .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 40px; text-align: center; }
+  .summary-icon { font-size: 64px; margin-bottom: 16px; }
+  .summary-title { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+  .summary-score { font-size: 3.5rem; font-weight: 800; color: var(--accent); margin: 16px 0; }
+  .summary-sub { color: var(--text-muted); }
+  .summary-details { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 28px; }
+  .summary-stat { background: var(--surface2); border-radius: 10px; padding: 20px; }
+  .summary-stat .val { font-size: 2rem; font-weight: 700; color: var(--accent); }
+  .summary-stat .lab { color: var(--text-muted); font-size: .85rem; margin-top: 4px; }
+
+  .waiting-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 48px; text-align: center; }
+  .waiting-card .icon { font-size: 56px; margin-bottom: 16px; }
+  .waiting-card h2 { font-size: 1.5rem; margin-bottom: 12px; }
+  .waiting-card p { color: var(--text-muted); line-height: 1.6; }
+
+  .empty-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+  .loading { text-align: center; padding: 40px; color: var(--text-muted); }
+  .section-title { color: var(--text-muted); font-size: .85rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin: 24px 0 12px; }
+</style>
+</head>
+<body>
+
+<div id="token-gate">
+  <div class="gate-card">
+    <div class="logo">🎯</div>
+    <h1>Quiz starten</h1>
+    <p>Gib deinen persönlichen Token ein, um das Quiz zu beginnen.</p>
+    <div class="input-group">
+      <input type="text" id="token-input" placeholder="Token eingeben..." />
+      <button class="btn" onclick="validateToken()">Weiter</button>
+    </div>
+    <div id="token-error" class="error-msg"></div>
+  </div>
+</div>
+
+<div id="alias-gate" style="display:none">
+  <div class="gate-card">
+    <div class="logo">👋</div>
+    <h1>Dein Name</h1>
+    <p>Gib einen Spitznamen an. Er erscheint auf dem Score Board – erst nachdem du alle Fragen beantwortet hast.</p>
+    <div class="input-group">
+      <input type="text" id="alias-input" maxlength="40" placeholder="z.B. Max M." />
+      <button class="btn" onclick="saveAliasAndStart()">Start</button>
+    </div>
+    <button class="btn-link" onclick="skipAliasAndStart()">Ohne Spitznamen starten</button>
+    <div id="alias-error" class="error-msg"></div>
+  </div>
+</div>
+
+<div id="quiz-app">
+  <div class="top-bar">
+    <div class="brand">🎯 <span id="quiz-name-label">Quiz</span></div>
+    <div class="top-right">
+      <span id="user-label"></span>
+      <span class="score-badge" id="score-display">0 / 0</span>
+    </div>
+  </div>
+  <div id="deadline-banner"></div>
+  <div class="quiz-container">
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span id="progress-text">Fortschritt</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+    <div id="questions-container"></div>
+  </div>
+</div>
+
+<script>
+let token = '';
+let questions = [];
+let quizInfo = {};
+let deadlineInterval = null;
+
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('token')) {
+  document.getElementById('token-input').value = urlParams.get('token');
+  setTimeout(validateToken, 200);
+}
+
+async function validateToken() {
+  const input = document.getElementById('token-input').value.trim();
+  if (!input) return;
+  try {
+    const res = await fetch('/api/quiz/validate', { headers: { 'x-quiz-token': input } });
+    if (!res.ok) { document.getElementById('token-error').textContent = 'Ungültiger Token.'; return; }
+    const data = await res.json();
+    token = input;
+    quizInfo = data;
+
+    // If alias already set OR results already published, skip alias gate
+    if (data.alias || data.results_published) {
+      enterQuizApp();
+    } else {
+      document.getElementById('token-gate').style.display = 'none';
+      document.getElementById('alias-gate').style.display = 'flex';
+      setTimeout(() => document.getElementById('alias-input').focus(), 50);
+    }
+  } catch(e) {
+    document.getElementById('token-error').textContent = 'Verbindungsfehler.';
+  }
+}
+document.getElementById('token-input').addEventListener('keydown', e => { if (e.key === 'Enter') validateToken(); });
+document.getElementById('alias-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveAliasAndStart(); });
+
+async function saveAliasAndStart() {
+  const alias = document.getElementById('alias-input').value.trim();
+  if (!alias) { skipAliasAndStart(); return; }
+  try {
+    const res = await fetch('/api/quiz/alias', {
+      method: 'POST',
+      headers: { 'x-quiz-token': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alias })
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      document.getElementById('alias-error').textContent = err.error || 'Fehler beim Speichern';
+      return;
+    }
+    const data = await res.json();
+    quizInfo.alias = data.alias;
+    enterQuizApp();
+  } catch(e) {
+    document.getElementById('alias-error').textContent = 'Verbindungsfehler.';
+  }
+}
+
+function skipAliasAndStart() {
+  enterQuizApp();
+}
+
+function enterQuizApp() {
+  document.getElementById('token-gate').style.display = 'none';
+  document.getElementById('alias-gate').style.display = 'none';
+  document.getElementById('quiz-app').style.display = 'block';
+  document.getElementById('quiz-name-label').textContent = quizInfo.quiz_name || 'Quiz';
+  const who = quizInfo.alias ? `👤 ${quizInfo.alias}` : (quizInfo.label ? `👤 ${quizInfo.label}` : '👤 Teilnehmer');
+  document.getElementById('user-label').textContent = who;
+  startDeadlineBanner();
+  loadQuestions();
+}
+
+function startDeadlineBanner() {
+  if (deadlineInterval) clearInterval(deadlineInterval);
+  updateDeadlineBanner();
+  if (quizInfo.deadline && !quizInfo.deadline_passed) {
+    deadlineInterval = setInterval(updateDeadlineBanner, 1000);
+  }
+}
+
+function updateDeadlineBanner() {
+  const el = document.getElementById('deadline-banner');
+  if (quizInfo.results_published) {
+    el.className = 'deadline-banner published';
+    el.innerHTML = '✅ Ergebnisse wurden veröffentlicht';
+    return;
+  }
+  if (!quizInfo.deadline) { el.innerHTML = ''; return; }
+  const now = new Date();
+  const dl = new Date(quizInfo.deadline);
+  const diff = dl - now;
+  if (diff <= 0) {
+    quizInfo.deadline_passed = true;
+    if (deadlineInterval) { clearInterval(deadlineInterval); deadlineInterval = null; }
+    el.className = 'deadline-banner passed';
+    el.innerHTML = `⏰ Deadline abgelaufen – keine Antworten mehr möglich`;
+    // Re-render to lock remaining questions
+    renderAll();
+    return;
+  }
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  const timeStr = h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+  const cls = diff < 300000 ? 'warning' : 'active'; // < 5min = warning
+  el.className = `deadline-banner ${cls}`;
+  el.innerHTML = `⏰ Deadline: ${dl.toLocaleString('de-DE')} – noch ${timeStr}`;
+}
+
+async function loadQuestions() {
+  const container = document.getElementById('questions-container');
+  container.innerHTML = '<div class="loading">⏳ Fragen werden geladen...</div>';
+  const res = await fetch('/api/quiz/questions', { headers: { 'x-quiz-token': token } });
+  questions = await res.json();
+  renderAll();
+}
+
+function renderAll() {
+  const container = document.getElementById('questions-container');
+  if (questions.length === 0) {
+    container.innerHTML = '<div class="empty-state">📭 Noch keine Fragen vorhanden.</div>';
+    updateProgress();
+    return;
+  }
+
+  // Check if published — show full summary
+  if (quizInfo.results_published) {
+    // Reload to get correct answers
+    fetch('/api/quiz/questions', { headers: { 'x-quiz-token': token } })
+      .then(r => r.json()).then(q => { questions = q; updateProgress(); renderPublishedSummary(container); });
+    return;
+  }
+
+  const answered = questions.filter(q => q.answered !== null);
+  const allAnswered = answered.length === questions.length;
+
+  if (allAnswered) {
+    renderWaitingScreen(container);
+    updateProgress();
+    return;
+  }
+
+  container.innerHTML = questions.map((q, i) => renderQuestion(q, i)).join('');
+  updateProgress();
+}
+
+function renderQuestion(q, i) {
+  const letters = ['A','B','C','D','E','F'];
+  const deadlinePassed = quizInfo.deadline_passed;
+
+  // Sequential lock: locked if previous question not yet answered
+  const prevAnswered = i === 0 || questions[i-1].answered !== null;
+  const isLocked = !prevAnswered;
+
+  const typeBadge = {
+    multiple_choice: '<span class="type-badge multiple_choice">☑️ Auswahl</span>',
+    free_text:       '<span class="type-badge free_text">✏️ Freitext</span>',
+    estimation:      '<span class="type-badge estimation">🔢 Schätzfrage</span>'
+  }[q.type] || '';
+
+  let inputHtml = '';
+  if (q.type === 'multiple_choice') {
+    const options = q.options.map((opt, idx) => {
+      let cls = 'option';
+      if (q.answered || isLocked || deadlinePassed) cls += ' disabled';
+      if (q.answered && idx === q.answered.selected_index) cls += ' selected';
+      return `<div class="${cls}" onclick="selectOption(${q.id}, ${idx}, this)" data-qi="${q.id}" data-oi="${idx}">
+        <div class="option-letter">${letters[idx]}</div><span>${opt}</span></div>`;
+    }).join('');
+    inputHtml = `<div class="options">${options}</div>`;
+  } else if (q.type === 'free_text') {
+    const val = q.answered ? escHtml(q.answered.text_answer || '') : '';
+    const dis = (q.answered || isLocked || deadlinePassed) ? 'disabled' : '';
+    inputHtml = `<textarea class="free-text-input" id="freetext-${q.id}" placeholder="Deine Antwort..." ${dis}>${val}</textarea>`;
+  } else if (q.type === 'estimation') {
+    const val = q.answered ? (q.answered.number_answer ?? '') : '';
+    const dis = (q.answered || isLocked || deadlinePassed) ? 'disabled' : '';
+    inputHtml = `<div>
+      <input type="number" class="number-input" id="number-${q.id}" placeholder="Zahl eingeben..." value="${val}" step="any" ${dis}>
+      <div class="number-hint">Gib deine Schätzung als Zahl ein.</div>
+    </div>`;
+  }
+
+  let footerHtml = '';
+  if (q.answered) {
+    footerHtml = `<div class="feedback neutral">✔️ Antwort gespeichert</div>`;
+  } else if (deadlinePassed) {
+    footerHtml = `<div class="feedback wrong">⏰ Deadline abgelaufen</div>`;
+  } else if (isLocked) {
+    footerHtml = `<div class="feedback info">🔒 Beantworte zuerst die vorherige Frage.</div>`;
+  } else {
+    const btnDisabled = q.type === 'multiple_choice' ? 'disabled' : '';
+    const btnLabel = q.type === 'estimation' ? 'Schätzung abschicken' : q.type === 'free_text' ? 'Antwort abschicken' : 'Antwort bestätigen';
+    footerHtml = `<button class="btn-confirm" id="confirm-${q.id}" onclick="submitAnswer(${q.id})" ${btnDisabled}>${btnLabel}</button>`;
+  }
+
+  const cardClass = `question-card${(isLocked && !deadlinePassed) ? ' locked' : ''}`;
+  return `<div class="${cardClass}" id="qcard-${q.id}">
+    <div class="question-number">${typeBadge} Frage ${i+1}</div>
+    <div class="question-text">${q.question}</div>
+    ${inputHtml}
+    ${footerHtml}
+  </div>`;
+}
+
+function selectOption(questionId, selectedIndex, el) {
+  const card = document.getElementById('qcard-' + questionId);
+  card.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  const btn = document.getElementById('confirm-' + questionId);
+  if (btn) { btn.disabled = false; btn.dataset.selected = selectedIndex; }
+}
+
+async function submitAnswer(questionId) {
+  const btn = document.getElementById('confirm-' + questionId);
+  const card = document.getElementById('qcard-' + questionId);
+  const q = questions.find(q => q.id === questionId);
+  let body;
+
+  if (q.type === 'multiple_choice') {
+    const selectedIndex = parseInt(btn.dataset.selected);
+    if (isNaN(selectedIndex)) return;
+    card.querySelectorAll('.option').forEach(o => { o.classList.add('disabled'); o.onclick = null; });
+    body = { question_id: questionId, selected_index: selectedIndex };
+  } else if (q.type === 'free_text') {
+    const text = document.getElementById('freetext-' + questionId).value.trim();
+    if (!text) { document.getElementById('freetext-' + questionId).style.borderColor = 'var(--error)'; return; }
+    document.getElementById('freetext-' + questionId).disabled = true;
+    body = { question_id: questionId, text_answer: text };
+  } else if (q.type === 'estimation') {
+    const val = parseFloat(document.getElementById('number-' + questionId).value);
+    if (isNaN(val)) { document.getElementById('number-' + questionId).style.borderColor = 'var(--error)'; return; }
+    document.getElementById('number-' + questionId).disabled = true;
+    body = { question_id: questionId, number_answer: val };
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Wird gespeichert…';
+
+  const res = await fetch('/api/quiz/answer', {
+    method: 'POST',
+    headers: { 'x-quiz-token': token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    btn.textContent = err.error || 'Fehler';
+    return;
+  }
+
+  q.answered = {
+    selected_index: body.selected_index ?? null,
+    text_answer: body.text_answer ?? null,
+    number_answer: body.number_answer ?? null,
+    is_correct: null  // Not known until published
+  };
+  btn.outerHTML = `<div class="feedback neutral">✔️ Antwort gespeichert</div>`;
+  updateProgress();
+
+  // Unlock next question by re-rendering it
+  const idx = questions.findIndex(x => x.id === questionId);
+  if (idx + 1 < questions.length && !questions[idx+1].answered) {
+    const nextQ = questions[idx+1];
+    const nextCard = document.getElementById('qcard-' + nextQ.id);
+    if (nextCard) nextCard.outerHTML = renderQuestion(nextQ, idx+1);
+  }
+
+  checkCompletion();
+}
+
+function checkCompletion() {
+  const allAnswered = questions.every(q => q.answered !== null);
+  if (allAnswered) setTimeout(() => renderWaitingScreen(document.getElementById('questions-container')), 600);
+}
+
+function renderWaitingScreen(container) {
+  updateProgress();
+  const scoreUrl = `/scoreboard?quiz=${encodeURIComponent(quizInfo.quiz_id)}`;
+  container.innerHTML = `<div class="waiting-card">
+    <div class="icon">⏳</div>
+    <h2>Alle Fragen beantwortet!</h2>
+    <p>Du hast alle Fragen eingereicht. Die Ergebnisse werden vom Admin ausgewertet und veröffentlicht.<br><br>
+    ${quizInfo.deadline ? `Deadline: <strong>${new Date(quizInfo.deadline).toLocaleString('de-DE')}</strong><br><br>` : ''}
+    Sobald die Ergebnisse veröffentlicht werden, erscheinen sie hier automatisch.</p>
+    <div style="margin-top:24px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button class="btn" onclick="checkForResults()">🔄 Jetzt prüfen</button>
+      <a class="btn" style="text-decoration:none;display:inline-block" href="${scoreUrl}" target="_blank">📊 Score Board</a>
+    </div>
+  </div>`;
+}
+
+async function checkForResults() {
+  const res = await fetch('/api/quiz/validate', { headers: { 'x-quiz-token': token } });
+  const data = await res.json();
+  quizInfo = { ...quizInfo, ...data };
+  if (data.results_published) {
+    startDeadlineBanner();
+    loadQuestions();
+  } else {
+    const btn = document.querySelector('.waiting-card .btn');
+    if (btn) { btn.textContent = 'Noch nicht verfügbar...'; setTimeout(() => btn.textContent = '🔄 Jetzt prüfen', 2000); }
+  }
+}
+
+function renderPublishedSummary(container) {
+  const letters = ['A','B','C','D','E','F'];
+  const scorable = questions.filter(q => q.type !== 'free_text');
+  const correct = scorable.filter(q => q.answered && q.answered.is_correct === 1).length;
+  const pct = scorable.length ? Math.round(correct / scorable.length * 100) : null;
+  const icon = pct === null ? '📝' : pct >= 80 ? '🏆' : pct >= 50 ? '👍' : '💪';
+  const msg = pct === null ? 'Fertig!' : pct >= 80 ? 'Ausgezeichnet!' : pct >= 50 ? 'Gut gemacht!' : 'Weiter üben!';
+
+  const breakdown = questions.map((q, i) => {
+    const a = q.answered;
+    let resultHtml = '';
+    let statusLabel = '';
+
+    if (q.type === 'multiple_choice') {
+      if (!a) {
+        statusLabel = '<span style="color:var(--text-muted)">⏰ Nicht beantwortet</span>';
+        const opts = q.options.map((opt, idx) => {
+          let cls = 'option disabled';
+          if (idx === q.correct_index) cls += ' correct';
+          return `<div class="${cls}"><div class="option-letter">${letters[idx]}</div><span>${opt}</span></div>`;
+        }).join('');
+        resultHtml = `<div class="options">${opts}</div>`;
+      } else {
+        const isCorrect = a.is_correct === 1;
+        statusLabel = isCorrect ? '<span style="color:var(--success)">✅ Richtig</span>' : '<span style="color:var(--error)">❌ Falsch</span>';
+        const opts = q.options.map((opt, idx) => {
+          let cls = 'option disabled';
+          if (idx === a.selected_index) cls += isCorrect ? ' correct' : ' wrong';
+          if (!isCorrect && idx === q.correct_index) cls += ' correct';
+          return `<div class="${cls}"><div class="option-letter">${letters[idx]}</div><span>${opt}</span></div>`;
+        }).join('');
+        resultHtml = `<div class="options">${opts}</div>`;
+      }
+    } else if (q.type === 'free_text') {
+      statusLabel = a ? '<span style="color:#60a5fa">✏️ Freitext</span>' : '<span style="color:var(--text-muted)">⏰ Nicht beantwortet</span>';
+      resultHtml = `<div class="feedback neutral">Deine Antwort: <strong>${escHtml(a?.text_answer || '–')}</strong></div>`;
+    } else if (q.type === 'estimation') {
+      if (!a) {
+        statusLabel = '<span style="color:var(--text-muted)">⏰ Nicht beantwortet</span>';
+        resultHtml = `<div class="feedback neutral">Richtige Zahl: <strong>${q.correct_number ?? '–'}</strong></div>`;
+      } else {
+        const isCorrect = a.is_correct === 1;
+        const dev = (a.number_answer != null && q.correct_number != null) ? Math.abs(a.number_answer - q.correct_number) : null;
+        statusLabel = isCorrect ? '<span style="color:var(--success)">🏆 Nächste Schätzung!</span>' : '<span style="color:var(--text-muted)">🔢 Schätzfrage</span>';
+        resultHtml = `<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+          <div class="feedback ${isCorrect ? 'correct' : 'neutral'}">
+            Deine Schätzung: <strong>${a.number_answer ?? '–'}</strong>
+            ${q.correct_number != null ? ` · Richtige Zahl: <strong>${q.correct_number}</strong>` : ''}
+            ${dev != null ? ` · Abweichung: <strong>${dev}</strong>` : ''}
+            ${isCorrect ? ' 🏆' : ''}
+          </div>
+        </div>`;
+      }
+    }
+
+    return `<div class="question-card" style="margin-bottom:12px">
+      <div class="question-number">Frage ${i+1} – ${statusLabel}</div>
+      <div class="question-text">${q.question}</div>
+      ${resultHtml}
+    </div>`;
+  }).join('');
+
+  const scoreHtml = scorable.length > 0 ? `
+    <div class="summary-score">${pct}%</div>
+    <div class="summary-details">
+      <div class="summary-stat"><div class="val" style="color:var(--success)">${correct}</div><div class="lab">Richtig</div></div>
+      <div class="summary-stat"><div class="val" style="color:var(--error)">${scorable.length - correct}</div><div class="lab">Falsch</div></div>
+      <div class="summary-stat"><div class="val">${scorable.length}</div><div class="lab">Auswertbar</div></div>
+    </div>` : '';
+
+  container.innerHTML = `<div class="summary-card" style="margin-bottom:24px">
+    <div class="summary-icon">${icon}</div>
+    <div class="summary-title">${msg}</div>
+    ${scoreHtml}
+    <div class="summary-sub" style="margin-top:16px">Ergebnisse wurden veröffentlicht.</div>
+  </div>
+  <div class="section-title">Auflösung</div>
+  ${breakdown}`;
+}
+
+function updateProgress() {
+  const answered = questions.filter(q => q.answered !== null).length;
+  const total = questions.length;
+  const pct = total ? Math.round(answered / total * 100) : 0;
+  document.getElementById('progress-text').textContent = `${answered} von ${total} beantwortet`;
+  document.getElementById('progress-pct').textContent = `${pct}%`;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('score-display').textContent = `${answered} / ${total}`;
+}
+
+function escHtml(str) {
+  return String(str||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+</body>
+</html>

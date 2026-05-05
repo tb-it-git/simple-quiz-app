@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Admin</title>
+<style>
+  :root {
+    --bg: #0f172a; --surface: #1e293b; --surface2: #273549; --border: #334155;
+    --accent: #6366f1; --accent-hover: #818cf8; --success: #22c55e; --error: #ef4444;
+    --warning: #f59e0b; --text: #f1f5f9; --text-muted: #94a3b8; --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+  #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 48px 40px; max-width: 400px; width: 100%; }
+  .login-card h1 { font-size: 1.6rem; margin-bottom: 4px; }
+  .login-card p { color: var(--text-muted); margin-bottom: 28px; }
+  .form-group { margin-bottom: 14px; }
+  label { display: block; font-size: .85rem; color: var(--text-muted); margin-bottom: 5px; }
+  input, select, textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: .95rem; outline: none; transition: border-color .2s; font-family: inherit; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  .error-msg { color: var(--error); font-size: .85rem; margin-top: 8px; }
+
+  #admin-app { display: none; min-height: 100vh; }
+  .top-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: stretch; justify-content: space-between; height: 56px; }
+  .brand { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .nav-tabs { display: flex; gap: 2px; align-items: center; }
+  .tab-btn { background: none; border: none; border-bottom: 3px solid transparent; color: var(--text-muted); padding: 0 16px; height: 56px; cursor: pointer; font-size: .9rem; transition: all .2s; }
+  .tab-btn.active { border-bottom-color: var(--accent); color: var(--text); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+  .top-right { display: flex; align-items: center; gap: 10px; }
+  .logout-btn { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: .85rem; }
+  .logout-btn:hover { border-color: var(--error); color: var(--error); }
+
+  .quiz-bar { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; gap: 12px; }
+  .quiz-bar label { color: var(--text-muted); font-size: .85rem; white-space: nowrap; margin: 0; }
+  .quiz-bar select { max-width: 320px; padding: 7px 12px; }
+
+  .content { max-width: 1000px; margin: 0 auto; padding: 28px 20px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .stat-card .val { font-size: 2.2rem; font-weight: 800; color: var(--accent); }
+  .stat-card .lab { color: var(--text-muted); font-size: .8rem; margin-top: 4px; }
+
+  .quiz-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; cursor: pointer; transition: border-color .2s; margin-bottom: 12px; }
+  .quiz-card:hover { border-color: var(--accent); }
+  .quiz-card.active-quiz { border-color: var(--accent); background: #1e2d4d; }
+  .quiz-card-info h3 { font-size: 1.05rem; margin-bottom: 4px; }
+  .quiz-card-info p { color: var(--text-muted); font-size: .85rem; }
+  .quiz-card-meta { display: flex; gap: 8px; flex-shrink: 0; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+  .meta-pill { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: .78rem; color: var(--text-muted); }
+  .status-pill { border-radius: 20px; padding: 3px 10px; font-size: .78rem; font-weight: 600; }
+  .status-pill.open { background: #1a2d1a; color: var(--success); border: 1px solid var(--success); }
+  .status-pill.passed { background: #2d1f00; color: var(--warning); border: 1px solid var(--warning); }
+  .status-pill.published { background: #052e16; color: var(--success); border: 1px solid var(--success); }
+  .status-pill.nodl { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border); }
+
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+  .section-header h2 { font-size: 1.2rem; }
+  .no-quiz-hint { background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius); padding: 40px; text-align: center; color: var(--text-muted); }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 14px; }
+  .card-body { padding: 16px 20px; }
+  .card-header { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-header h3 { font-size: .95rem; font-weight: 600; }
+
+  .btn { border: none; border-radius: 8px; padding: 9px 16px; font-size: .875rem; cursor: pointer; transition: all .2s; font-family: inherit; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-danger { background: transparent; border: 1px solid var(--error); color: var(--error); }
+  .btn-danger:hover { background: var(--error); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; border: none; }
+  .btn-success:hover { filter: brightness(1.1); }
+  .btn-warning { background: var(--warning); color: #000; border: none; }
+  .btn-warning:hover { filter: brightness(1.1); }
+  .btn-sm { padding: 5px 10px; font-size: .8rem; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+  th { text-align: left; padding: 10px 16px; color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--border); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }
+  td { padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.03); }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; max-width: 540px; width: 100%; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { margin-bottom: 18px; font-size: 1.15rem; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  .option-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .option-row { display: flex; gap: 8px; align-items: center; }
+  .option-row input[type="text"] { flex: 1; }
+  .option-row input[type="radio"] { width: auto; cursor: pointer; accent-color: var(--success); }
+
+  .result-row { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
+  .result-label { font-weight: 600; }
+  .result-token { font-family: monospace; font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+  .result-score { font-size: 1.05rem; font-weight: 700; color: var(--accent); text-align: right; }
+  .result-score small { display: block; color: var(--text-muted); font-size: .75rem; font-weight: 400; }
+  .answer-dots { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .answer-dot { width: 18px; height: 18px; border-radius: 50%; }
+  .answer-dot.correct { background: var(--success); }
+  .answer-dot.wrong { background: var(--error); }
+  .answer-dot.unanswered { background: var(--border); }
+  .answer-dot.estimation { background: var(--warning); }
+  .answer-dot.freetext { background: #2563eb; }
+
+  .estimation-answers { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 10px; font-size: .82rem; }
+  .estimation-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+  .estimation-row:last-child { border-bottom: none; }
+  .est-winner { color: var(--warning); font-weight: 700; }
+
+  .mono { font-family: monospace; font-size: .82rem; background: var(--bg); padding: 2px 6px; border-radius: 4px; cursor: pointer; }
+  .mono:hover { color: var(--accent); }
+  .new-tokens-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 14px; max-height: 180px; overflow-y: auto; }
+  .new-token-item { font-family: monospace; font-size: .82rem; padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .new-token-item:last-child { border-bottom: none; }
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+
+  .publish-box { background: var(--surface); border: 2px solid var(--warning); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .publish-box.done { border-color: var(--success); }
+  .publish-box-text h3 { font-size: 1rem; margin-bottom: 4px; }
+  .publish-box-text p { color: var(--text-muted); font-size: .85rem; }
+  .deadline-info { font-size: .82rem; color: var(--text-muted); margin-top: 4px; }
+
+  .type-badge { display: inline-block; font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; margin-right: 4px; }
+  .type-badge.multiple_choice { background: #1e1f4b; color: #a5b4fc; border: 1px solid #4f46e5; }
+  .type-badge.free_text { background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; }
+  .type-badge.estimation { background: #2d1f00; color: #fbbf24; border: 1px solid #d97706; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <h1>⚙️ Admin</h1>
+    <p>Quiz-Verwaltung – Anmeldung erforderlich</p>
+    <div class="form-group">
+      <label>Admin-Passwort</label>
+      <input type="password" id="secret-input" placeholder="Passwort eingeben..." />
+    </div>
+    <button class="btn btn-primary" style="width:100%" onclick="adminLogin()">Anmelden</button>
+    <div id="login-error" class="error-msg"></div>
+  </div>
+</div>
+
+<div id="admin-app">
+  <div class="top-bar">
+    <div class="brand">⚙️ Quiz Admin</div>
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab('quizzes',this)">Quiz-Übersicht</button>
+      <button class="tab-btn" onclick="switchTab('questions',this)">Fragen</button>
+      <button class="tab-btn" onclick="switchTab('tokens',this)">Tokens</button>
+      <button class="tab-btn" onclick="switchTab('results',this)">Ergebnisse</button>
+    </div>
+    <div class="top-right">
+      <button class="logout-btn" onclick="logout()">Abmelden</button>
+    </div>
+  </div>
+  <div class="quiz-bar" id="quiz-bar" style="display:none">
+    <label>Aktives Quiz:</label>
+    <select id="quiz-selector" onchange="onQuizChange()">
+      <option value="">– Quiz wählen –</option>
+    </select>
+  </div>
+
+  <div class="content">
+    <div class="tab-panel active" id="tab-quizzes">
+      <div class="section-header">
+        <h2>Alle Quiz</h2>
+        <div class="btn-row">
+          <input type="file" id="import-file-input" accept="application/json,.json" style="display:none" onchange="onImportFileSelected(event)" />
+          <button class="btn btn-secondary" onclick="document.getElementById('import-file-input').click()">📥 Import</button>
+          <button class="btn btn-secondary" onclick="exportAllQuizzes()">📤 Alle exportieren</button>
+          <button class="btn btn-primary" onclick="openQuizModal()">+ Neues Quiz</button>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="val" id="s-quizzes">–</div><div class="lab">Quiz gesamt</div></div>
+        <div class="stat-card"><div class="val" id="s-questions">–</div><div class="lab">Fragen gesamt</div></div>
+        <div class="stat-card"><div class="val" id="s-tokens">–</div><div class="lab">Tokens gesamt</div></div>
+        <div class="stat-card"><div class="val" id="s-active">–</div><div class="lab">Aktive Teilnehmer</div></div>
+      </div>
+      <div id="quiz-list"></div>
+    </div>
+    <div class="tab-panel" id="tab-questions"><div id="questions-content"></div></div>
+    <div class="tab-panel" id="tab-tokens"><div id="tokens-content"></div></div>
+    <div class="tab-panel" id="tab-results"><div id="results-content"></div></div>
+  </div>
+</div>
+
+<!-- QUIZ MODAL -->
+<div class="modal-overlay" id="quiz-modal">
+  <div class="modal">
+    <h2 id="quiz-modal-title">Neues Quiz erstellen</h2>
+    <input type="hidden" id="qz-edit-id" />
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" id="qz-name" placeholder="z.B. Wissensquiz Klasse 10a" />
+    </div>
+    <div class="form-group">
+      <label>Beschreibung <small style="color:var(--text-muted)">(optional)</small></label>
+      <textarea id="qz-desc" rows="2" placeholder="Kurze Beschreibung..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Deadline <small style="color:var(--text-muted)">(optional – bis wann Antworten akzeptiert werden)</small></label>
+      <input type="datetime-local" id="qz-deadline" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('quiz-modal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveQuiz()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUESTION MODAL -->
+<div class="modal-overlay" id="question-modal">
+  <div class="modal">
+    <h2 id="q-modal-title">Frage hinzufügen</h2>
+    <input type="hidden" id="q-edit-id" />
+    <div class="form-group">
+      <label>Fragetyp</label>
+      <select id="q-type" onchange="onQuestionTypeChange()">
+        <option value="multiple_choice">☑️ Multiple Choice</option>
+        <option value="free_text">✏️ Freitext</option>
+        <option value="estimation">🔢 Schätzfrage</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Frage</label>
+      <textarea id="q-text" rows="3" placeholder="Fragetext eingeben..."></textarea>
+    </div>
+    <div id="q-options-section">
+      <div class="form-group">
+        <label>Antwortmöglichkeiten <small style="color:var(--text-muted)">(● = korrekt)</small></label>
+        <div class="option-list" id="option-list"></div>
+        <button class="btn btn-secondary btn-sm" onclick="addOptionRow()">+ Option hinzufügen</button>
+      </div>
+    </div>
+    <div id="q-estimation-section" style="display:none">
+      <div class="form-group">
+        <label>Richtige Zahl <small style="color:var(--text-muted)">(bleibt verborgen bis zur Veröffentlichung)</small></label>
+        <input type="number" id="q-correct-number" placeholder="z.B. 1492" step="any" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Reihenfolge</label>
+      <input type="number" id="q-order" value="0" min="0" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('question-modal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveQuestion()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOKEN MODAL -->
+<div class="modal-overlay" id="token-modal">
+  <div class="modal">
+    <h2>Tokens erstellen</h2>
+    <div class="form-group">
+      <label>Bezeichnung / Gruppe <small style="color:var(--text-muted)">(optional)</small></label>
+      <input type="text" id="t-label" placeholder="z.B. Klasse 10a..." />
+    </div>
+    <div class="form-group">
+      <label>Anzahl</label>
+      <input type="number" id="t-count" value="1" min="1" max="200" />
+    </div>
+    <div id="new-tokens-result" style="display:none">
+      <p style="color:var(--success);margin-top:12px;font-weight:600">✅ Tokens erstellt:</p>
+      <div class="new-tokens-box" id="new-tokens-box"></div>
+      <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="copyAllTokens()">📋 Alle kopieren</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('token-modal')">Schließen</button>
+      <button class="btn btn-primary" onclick="createTokens()">Erstellen</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let adminSecret = '';
+let currentQuizId = null;
+let currentQuestions = [];
+let optionCount = 0;
+
+function adminLogin() {
+  const secret = document.getElementById('secret-input').value;
+  if (!secret) return;
+  tryLogin(secret, true);
+}
+
+function tryLogin(secret, showError) {
+  adminSecret = secret;
+  fetch('/api/admin/stats', { headers: { 'x-admin-secret': secret } })
+    .then(r => {
+      if (!r.ok) {
+        // Only clear if this is still the active secret (avoid race with manual login)
+        if (adminSecret === secret) {
+          adminSecret = '';
+          try { localStorage.removeItem('quizAdminSecret'); } catch(e) {}
+        }
+        if (showError) document.getElementById('login-error').textContent = 'Falsches Passwort.';
+        return null;
+      }
+      return r.json();
+    })
+    .then(data => {
+      if (!data) return;
+      // Only act if still the active secret
+      if (adminSecret !== secret) return;
+      try { localStorage.setItem('quizAdminSecret', secret); } catch(e) {}
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('admin-app').style.display = 'block';
+      updateStats(data);
+      loadQuizList();
+    })
+    .catch(() => {
+      if (adminSecret === secret) adminSecret = '';
+    });
+}
+
+// Auto-login from localStorage on page load
+(function autoLogin() {
+  let stored = null;
+  try { stored = localStorage.getItem('quizAdminSecret'); } catch(e) {}
+  if (stored) tryLogin(stored, false);
+})();
+
+document.getElementById('secret-input').addEventListener('keydown', e => { if (e.key === 'Enter') adminLogin(); });
+function logout() {
+  adminSecret = '';
+  stopResultsAutoRefresh();
+  try { localStorage.removeItem('quizAdminSecret'); } catch(e) {}
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('admin-app').style.display = 'none';
+  document.getElementById('secret-input').value = '';
+}
+
+function api(path, opts = {}) {
+  if (!adminSecret) {
+    // Not logged in — show login screen
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('admin-app').style.display = 'none';
+    return Promise.reject(new Error('Not authenticated'));
+  }
+  return fetch('/api/admin' + path, { ...opts, headers: { 'x-admin-secret': adminSecret, 'Content-Type': 'application/json', ...(opts.headers||{}) } })
+    .then(r => {
+      if (r.status === 401) {
+        adminSecret = '';
+        try { localStorage.removeItem('quizAdminSecret'); } catch(e) {}
+        document.getElementById('login-screen').style.display = 'flex';
+        document.getElementById('admin-app').style.display = 'none';
+        document.getElementById('login-error').textContent = 'Sitzung abgelaufen. Bitte erneut anmelden.';
+      }
+      return r;
+    });
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  const showBar = name !== 'quizzes';
+  document.getElementById('quiz-bar').style.display = showBar ? 'flex' : 'none';
+  // Stop auto-refresh when leaving results tab
+  if (name !== 'results') stopResultsAutoRefresh();
+  if (name === 'quizzes') { loadQuizList(); loadStats(); }
+  else loadQuizSelector().then(() => {
+    if (name === 'questions') renderQuestionsTab();
+    else if (name === 'tokens') renderTokensTab();
+    else if (name === 'results') renderResultsTab();
+  });
+}
+
+function updateStats(d) {
+  document.getElementById('s-quizzes').textContent = d.totalQuizzes ?? '–';
+  document.getElementById('s-questions').textContent = d.totalQuestions ?? '–';
+  document.getElementById('s-tokens').textContent = d.totalTokens ?? '–';
+  document.getElementById('s-active').textContent = d.activeUsers ?? '–';
+}
+async function loadStats() { const r = await api('/stats'); updateStats(await r.json()); }
+
+async function loadQuizSelector() {
+  const res = await api('/quizzes');
+  const quizzes = await res.json();
+  const sel = document.getElementById('quiz-selector');
+  sel.innerHTML = '<option value="">– Quiz wählen –</option>' + quizzes.map(q => `<option value="${q.id}" ${q.id==currentQuizId?'selected':''}>${escHtml(q.name)}</option>`).join('');
+  return quizzes;
+}
+
+function onQuizChange() {
+  currentQuizId = document.getElementById('quiz-selector').value || null;
+  const active = document.querySelector('.tab-btn.active');
+  if (!active) return;
+  const tab = active.getAttribute('onclick').match(/'(\w+)'/)?.[1];
+  if (tab === 'questions') renderQuestionsTab();
+  else if (tab === 'tokens') renderTokensTab();
+  else if (tab === 'results') renderResultsTab();
+}
+
+// ─── Quiz List ────────────────────────────────────────────────
+async function loadQuizList() {
+  const res = await api('/quizzes');
+  const quizzes = await res.json();
+  const sel = document.getElementById('quiz-selector');
+  sel.innerHTML = '<option value="">– Quiz wählen –</option>' + quizzes.map(q => `<option value="${q.id}" ${q.id==currentQuizId?'selected':''}>${escHtml(q.name)}</option>`).join('');
+  const el = document.getElementById('quiz-list');
+  if (quizzes.length === 0) { el.innerHTML = '<div class="empty-state">📋 Noch kein Quiz vorhanden.</div>'; return; }
+
+  window._quizCache = {};
+  quizzes.forEach(q => { window._quizCache[q.id] = q; });
+
+  el.innerHTML = quizzes.map(q => {
+    const now = new Date();
+    const dl = q.deadline ? new Date(q.deadline) : null;
+    let statusPill = '';
+    if (q.results_published) statusPill = '<span class="status-pill published">✅ Veröffentlicht</span>';
+    else if (!dl) statusPill = '<span class="status-pill nodl">Keine Deadline</span>';
+    else if (now > dl) statusPill = '<span class="status-pill passed">⏰ Abgelaufen</span>';
+    else statusPill = '<span class="status-pill open">🟢 Offen</span>';
+    const dlText = dl ? `<div style="font-size:.78rem;color:var(--text-muted);margin-top:4px">⏰ Deadline: ${dl.toLocaleString('de-DE')}</div>` : '';
+
+    return `<div class="quiz-card ${q.id==currentQuizId?'active-quiz':''}" onclick="selectQuizAndGo(${q.id})">
+      <div class="quiz-card-info">
+        <h3>${escHtml(q.name)}</h3>
+        <p>${q.description ? escHtml(q.description) : '<span style="opacity:.5">Keine Beschreibung</span>'}</p>
+        ${dlText}
+      </div>
+      <div class="quiz-card-meta">
+        ${statusPill}
+        <span class="meta-pill">📝 ${q.question_count}</span>
+        <span class="meta-pill">🔑 ${q.token_count}</span>
+        <a class="btn btn-secondary btn-sm" style="text-decoration:none" href="/scoreboard?quiz=${q.id}" target="_blank" onclick="event.stopPropagation()">📊 Score Board</a>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();exportQuiz(${q.id})" title="Quiz exportieren">📤</button>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();editQuizById(${q.id})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteQuiz(${q.id})">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function editQuizById(id) {
+  const q = window._quizCache && window._quizCache[id];
+  if (!q) return;
+  openQuizModal(q.id, q.name, q.description || '', q.deadline || '');
+}
+
+function selectQuizAndGo(id) {
+  currentQuizId = id;
+  document.getElementById('quiz-selector').value = id;
+  switchTab('questions', document.querySelectorAll('.tab-btn')[1]);
+}
+
+// Quiz CRUD
+function openQuizModal(id=null,name='',desc='',deadline='') {
+  document.getElementById('quiz-modal-title').textContent = id ? 'Quiz bearbeiten' : 'Neues Quiz erstellen';
+  document.getElementById('qz-edit-id').value = id||'';
+  document.getElementById('qz-name').value = name;
+  document.getElementById('qz-desc').value = desc;
+  // Convert stored deadline (ISO/UTC) to local datetime-local format
+  if (deadline) {
+    try {
+      const d = new Date(deadline);
+      const pad = n => String(n).padStart(2, '0');
+      document.getElementById('qz-deadline').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch(e) { document.getElementById('qz-deadline').value = ''; }
+  } else { document.getElementById('qz-deadline').value = ''; }
+  document.getElementById('quiz-modal').classList.add('open');
+}
+function editQuiz(id,name,desc,deadline) { openQuizModal(id,name,desc,deadline); }
+
+async function saveQuiz() {
+  const id = document.getElementById('qz-edit-id').value;
+  const name = document.getElementById('qz-name').value.trim();
+  const description = document.getElementById('qz-desc').value.trim();
+  const deadlineVal = document.getElementById('qz-deadline').value;
+  if (!name) { alert('Name erforderlich'); return; }
+  // Store deadline as ISO string or null
+  const deadline = deadlineVal ? new Date(deadlineVal).toISOString() : null;
+  const body = JSON.stringify({ name, description, deadline });
+  if (id) await api(`/quizzes/${id}`, { method: 'PUT', body });
+  else await api('/quizzes', { method: 'POST', body });
+  closeModal('quiz-modal');
+  loadQuizList();
+  loadStats();
+}
+
+async function deleteQuiz(id) {
+  if (!confirm('Quiz mit allen Fragen, Tokens und Antworten löschen?')) return;
+  await api(`/quizzes/${id}`, { method: 'DELETE' });
+  if (currentQuizId == id) currentQuizId = null;
+  loadQuizList(); loadStats();
+}
+
+// ─── Import / Export ──────────────────────────────────────────
+
+function slugify(s) {
+  return String(s||'quiz').toLowerCase()
+    .replace(/[äöüß]/g, c => ({'ä':'ae','ö':'oe','ü':'ue','ß':'ss'}[c]))
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'quiz';
+}
+
+function downloadJson(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportQuiz(id) {
+  const res = await api(`/quizzes/${id}/export`);
+  if (!res.ok) { alert('Export fehlgeschlagen.'); return; }
+  const data = await res.json();
+  const quiz = data.quizzes[0];
+  const date = new Date().toISOString().slice(0, 10);
+  downloadJson(data, `quiz-${slugify(quiz.name)}-${date}.json`);
+}
+
+async function exportAllQuizzes() {
+  const res = await api('/export');
+  if (!res.ok) { alert('Export fehlgeschlagen.'); return; }
+  const data = await res.json();
+  if (!data.quizzes.length) { alert('Kein Quiz zum Exportieren vorhanden.'); return; }
+  const date = new Date().toISOString().slice(0, 10);
+  downloadJson(data, `quiz-backup-${date}.json`);
+}
+
+async function onImportFileSelected(event) {
+  const file = event.target.files[0];
+  event.target.value = '';  // allow re-selecting same file later
+  if (!file) return;
+
+  let data;
+  try {
+    const text = await file.text();
+    data = JSON.parse(text);
+  } catch(e) {
+    alert('Datei konnte nicht gelesen werden (kein gültiges JSON).');
+    return;
+  }
+
+  if (!data || data.format !== 'quiz-app-export' || !Array.isArray(data.quizzes)) {
+    alert('Ungültiges Dateiformat. Diese Datei ist kein Quiz-Export.');
+    return;
+  }
+
+  const totalQ = data.quizzes.reduce((n, q) => n + (Array.isArray(q.questions) ? q.questions.length : 0), 0);
+  const names = data.quizzes.map(q => q.name).join(', ');
+  if (!confirm(`${data.quizzes.length} Quiz mit insgesamt ${totalQ} Fragen importieren?\n\n${names}\n\nEs werden jeweils neue Quiz angelegt.`)) return;
+
+  const res = await api('/import', { method: 'POST', body: JSON.stringify(data) });
+  const result = await res.json();
+  if (!res.ok) {
+    alert(result.error || 'Import fehlgeschlagen.');
+    return;
+  }
+  alert(`✅ ${result.imported.length} Quiz erfolgreich importiert.`);
+  loadQuizList();
+  loadStats();
+}
+
+// ─── Questions Tab ────────────────────────────────────────────
+async function renderQuestionsTab() {
+  const el = document.getElementById('questions-content');
+  if (!currentQuizId) { el.innerHTML = `<div class="no-quiz-hint">👆 Bitte oben ein Quiz auswählen.</div>`; return; }
+  const res = await api(`/questions?quiz_id=${currentQuizId}`);
+  currentQuestions = await res.json();
+  window._questionCache = {};
+  currentQuestions.forEach(q => { window._questionCache[q.id] = q; });
+  const typeBadgeHtml = t => {
+    const map = { multiple_choice:'<span class="type-badge multiple_choice">☑️</span>', free_text:'<span class="type-badge free_text">✏️</span>', estimation:'<span class="type-badge estimation">🔢</span>' };
+    return map[t] || '';
+  };
+  el.innerHTML = `
+    <div class="section-header"><h2>Fragen</h2>
+      <div class="btn-row">
+        <button class="btn btn-danger btn-sm" onclick="deleteAllQuestions()">🗑️ Alle</button>
+        <button class="btn btn-primary" onclick="openQuestionModal()">+ Frage hinzufügen</button>
+      </div>
+    </div>
+    ${currentQuestions.length === 0 ? '<div class="empty-state">📭 Keine Fragen vorhanden.</div>'
+    : currentQuestions.map(q => {
+        let detail = '';
+        if (q.type === 'multiple_choice') {
+          detail = (q.options||[]).map((o,i) => `<div style="padding:3px 0;color:${i===q.correct_index?'var(--success)':'inherit'}">${i===q.correct_index?'✅':'○'} ${escHtml(o)}</div>`).join('');
+        } else if (q.type === 'free_text') {
+          detail = '<div style="color:var(--text-muted);font-size:.85rem">Offene Texteingabe</div>';
+        } else if (q.type === 'estimation') {
+          detail = `<div style="color:var(--text-muted);font-size:.85rem">Richtige Zahl: <strong style="color:var(--warning)">${q.correct_number ?? '–'}</strong> (verborgen bis Veröffentlichung)</div>`;
+        }
+        return `<div class="card">
+          <div class="card-header">
+            <h3>${typeBadgeHtml(q.type)} ${escHtml(q.question)}</h3>
+            <div class="btn-row">
+              <button class="btn btn-secondary btn-sm" onclick="editQuestionById(${q.id})">✏️</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteQuestion(${q.id})">🗑️</button>
+            </div>
+          </div>
+          <div class="card-body">${detail}<div style="margin-top:6px;color:var(--text-muted);font-size:.78rem">Reihenfolge: ${q.sort_order}</div></div>
+        </div>`;
+      }).join('')}`;
+}
+
+function editQuestionById(id) {
+  const q = window._questionCache && window._questionCache[id];
+  if (q) openQuestionModal(q);
+}
+
+function onQuestionTypeChange() {
+  const t = document.getElementById('q-type').value;
+  document.getElementById('q-options-section').style.display = t === 'multiple_choice' ? 'block' : 'none';
+  document.getElementById('q-estimation-section').style.display = t === 'estimation' ? 'block' : 'none';
+}
+
+function openQuestionModal(q=null) {
+  document.getElementById('q-modal-title').textContent = q ? 'Frage bearbeiten' : 'Frage hinzufügen';
+  document.getElementById('q-edit-id').value = q ? q.id : '';
+  document.getElementById('q-text').value = q ? q.question : '';
+  document.getElementById('q-order').value = q ? q.sort_order : 0;
+  document.getElementById('q-correct-number').value = (q && q.correct_number != null) ? q.correct_number : '';
+  const type = q ? (q.type||'multiple_choice') : 'multiple_choice';
+  document.getElementById('q-type').value = type;
+  document.getElementById('q-options-section').style.display = type === 'multiple_choice' ? 'block' : 'none';
+  document.getElementById('q-estimation-section').style.display = type === 'estimation' ? 'block' : 'none';
+  optionCount = 0;
+  document.getElementById('option-list').innerHTML = '';
+  if (type === 'multiple_choice') {
+    const opts = q ? (q.options||['','']) : ['',''];
+    opts.forEach((o,i) => addOptionRow(o, i===(q?q.correct_index:0)));
+  }
+  document.getElementById('question-modal').classList.add('open');
+}
+function editQuestion(q) { openQuestionModal(q); }
+
+function addOptionRow(val='', correct=false) {
+  const idx = optionCount++;
+  const el = document.createElement('div');
+  el.className = 'option-row';
+  el.innerHTML = `<input type="radio" name="correct" value="${idx}" ${correct?'checked':''}><input type="text" placeholder="Option ${String.fromCharCode(65+idx)}" value="${escHtml(val)}" class="option-input"><button class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">×</button>`;
+  document.getElementById('option-list').appendChild(el);
+}
+
+async function saveQuestion() {
+  const id = document.getElementById('q-edit-id').value;
+  const question = document.getElementById('q-text').value.trim();
+  const sort_order = parseInt(document.getElementById('q-order').value)||0;
+  const type = document.getElementById('q-type').value;
+  if (!question) { alert('Fragetext erforderlich'); return; }
+  let body;
+  if (type === 'multiple_choice') {
+    const rows = document.querySelectorAll('#option-list .option-row');
+    const options = Array.from(rows).map(r => r.querySelector('.option-input').value.trim());
+    const correctEl = document.querySelector('#option-list input[name="correct"]:checked');
+    if (options.some(o=>!o)||options.length<2) { alert('Mind. 2 Optionen ausfüllen.'); return; }
+    body = JSON.stringify({ quiz_id: currentQuizId, question, type, options, correct_index: correctEl?parseInt(correctEl.value):0, sort_order });
+  } else if (type === 'estimation') {
+    const cn = parseFloat(document.getElementById('q-correct-number').value);
+    if (isNaN(cn)) { alert('Bitte eine gültige Zahl als Lösung eingeben.'); return; }
+    body = JSON.stringify({ quiz_id: currentQuizId, question, type, correct_number: cn, sort_order });
+  } else {
+    body = JSON.stringify({ quiz_id: currentQuizId, question, type, sort_order });
+  }
+  if (id) await api(`/questions/${id}`, { method: 'PUT', body });
+  else await api('/questions', { method: 'POST', body });
+  closeModal('question-modal');
+  renderQuestionsTab();
+}
+
+async function deleteQuestion(id) { if (!confirm('Frage löschen?')) return; await api(`/questions/${id}`, { method: 'DELETE' }); renderQuestionsTab(); }
+async function deleteAllQuestions() { if (!confirm('Alle Fragen löschen?')) return; await api(`/questions/ALL?quiz_id=${currentQuizId}`, { method: 'DELETE' }); renderQuestionsTab(); }
+
+// ─── Tokens Tab ───────────────────────────────────────────────
+async function renderTokensTab() {
+  const el = document.getElementById('tokens-content');
+  if (!currentQuizId) { el.innerHTML = `<div class="no-quiz-hint">👆 Bitte oben ein Quiz auswählen.</div>`; return; }
+  const tokens = await (await api(`/tokens?quiz_id=${currentQuizId}`)).json();
+  el.innerHTML = `
+    <div class="section-header"><h2>Tokens</h2>
+      <div class="btn-row">
+        <button class="btn btn-danger btn-sm" onclick="deleteAllTokens()">🗑️ Alle</button>
+        ${tokens.length ? `<button class="btn btn-secondary" onclick="exportTokensPDF()">📄 PDF exportieren</button>` : ''}
+        <button class="btn btn-primary" onclick="openTokenModal()">+ Tokens erstellen</button>
+      </div>
+    </div>
+    ${tokens.length===0 ? '<div class="empty-state">🔑 Keine Tokens.</div>'
+    : `<div class="card"><table>
+        <thead><tr><th>Token</th><th>Alias</th><th>Bezeichnung</th><th>Erstellt</th><th></th></tr></thead>
+        <tbody>${tokens.map(t=>`<tr>
+          <td><span class="mono" onclick="copyText('${t.token}',this)" title="Kopieren">${t.token}</span></td>
+          <td>${t.alias ? `<strong>${escHtml(t.alias)}</strong>` : '<span style="color:var(--text-muted)">–</span>'}</td>
+          <td>${t.label||'<span style="color:var(--text-muted)">–</span>'}</td>
+          <td style="color:var(--text-muted);font-size:.82rem">${new Date(t.created_at).toLocaleString('de-DE')}</td>
+          <td><button class="btn btn-danger btn-sm" onclick="deleteToken('${t.token}')">🗑️</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`}`;
+}
+
+async function exportTokensPDF() {
+  // Ask for the label to print on each card
+  const title = prompt('Überschrift auf den Token-Karten:', 'Vatertag FW Mehren');
+  if (title === null) return; // cancelled
+
+  const tokens = await (await api(`/tokens?quiz_id=${currentQuizId}`)).json();
+  if (!tokens.length) return;
+
+  const baseUrl = `${location.protocol}//${location.host}/quiz?token=`;
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Token Export</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background:#fff; }
+  .page { width:210mm; margin:0 auto; padding:8mm; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:5mm; }
+  .card {
+    border:1px solid #ccc; border-radius:6px; padding:6mm 4mm;
+    text-align:center; display:flex; flex-direction:column;
+    align-items:center; gap:3mm; page-break-inside:avoid;
+  }
+  .card-title { font-size:11pt; font-weight:700; color:#1e293b; letter-spacing:.02em; }
+  .qr-wrap { width:44mm; height:44mm; display:flex; align-items:center; justify-content:center; }
+  .qr-wrap img, .qr-wrap canvas { width:44mm!important; height:44mm!important; }
+  .card-id { font-size:16pt; font-weight:800; letter-spacing:.15em; color:#6366f1; font-variant-numeric:tabular-nums; }
+  @media print {
+    body { margin:0; }
+    .no-print { display:none; }
+    @page { size:A4; margin:8mm; }
+  }
+</style>
+</head>
+<body>
+<div style="padding:4mm 8mm 2mm;display:flex;justify-content:space-between;align-items:center" class="no-print">
+  <span style="font-size:13pt;font-weight:600">Token-Export – ${tokens.length} Tokens</span>
+  <button onclick="window.print()" style="background:#6366f1;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:11pt;cursor:pointer;font-weight:600">🖨️ Drucken / Als PDF speichern</button>
+</div>
+<div class="page">
+  <div class="grid" id="grid"></div>
+</div>
+<script>
+const tokens = ${JSON.stringify(tokens.map(t=>({token:t.token,id:t.token.split('-')[2]||''}) ))};
+const baseUrl = ${JSON.stringify(baseUrl)};
+const title = ${JSON.stringify(title)};
+const grid = document.getElementById('grid');
+tokens.forEach((t, i) => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = \`<div class="card-title">\${title}<\/div><div class="qr-wrap" id="qr-\${i}"><\/div><div class="card-id">\${t.id}<\/div>\`;
+  grid.appendChild(card);
+  new QRCode(document.getElementById('qr-'+i), {
+    text: baseUrl + t.token,
+    width: 166, height: 166,
+    colorDark: '#1e293b', colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+});
+<\/script>
+</body>
+</html>`);
+  win.document.close();
+}
+
+function openTokenModal() {
+  document.getElementById('t-label').value=''; document.getElementById('t-count').value='1';
+  document.getElementById('new-tokens-result').style.display='none';
+  document.getElementById('token-modal').classList.add('open');
+}
+async function createTokens() {
+  const label = document.getElementById('t-label').value.trim()||null;
+  const count = parseInt(document.getElementById('t-count').value)||1;
+  const data = await (await api('/tokens', { method:'POST', body: JSON.stringify({ quiz_id: currentQuizId, label, count }) })).json();
+  document.getElementById('new-tokens-box').innerHTML = data.tokens.map(t=>`<div class="new-token-item"><span>${t}</span><button class="btn btn-secondary btn-sm" onclick="copyText('${t}',this)">📋</button></div>`).join('');
+  document.getElementById('new-tokens-result').style.display='block';
+  renderTokensTab();
+}
+function copyAllTokens() { navigator.clipboard.writeText(Array.from(document.querySelectorAll('.new-token-item span')).map(s=>s.textContent).join('\n')); }
+async function deleteToken(token) { if (!confirm('Token löschen?')) return; await api(`/tokens?token=${encodeURIComponent(token)}`, { method:'DELETE' }); renderTokensTab(); }
+async function deleteAllTokens() { if (!confirm('Alle Tokens löschen?')) return; await api(`/tokens?token=ALL&quiz_id=${currentQuizId}`, { method:'DELETE' }); renderTokensTab(); }
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(()=>{ const o=btn.textContent; btn.textContent='✓'; setTimeout(()=>btn.textContent=o,1500); });
+}
+
+// ─── Results Tab ──────────────────────────────────────────────
+let resultsAutoRefreshInterval = null;
+let resultsLastUpdated = null;
+
+function stopResultsAutoRefresh() {
+  if (resultsAutoRefreshInterval) {
+    clearInterval(resultsAutoRefreshInterval);
+    resultsAutoRefreshInterval = null;
+  }
+}
+
+function toggleResultsAutoRefresh() {
+  const cb = document.getElementById('auto-refresh-toggle');
+  if (!cb) return;
+  if (cb.checked) {
+    if (!resultsAutoRefreshInterval) {
+      resultsAutoRefreshInterval = setInterval(() => { renderResultsTab(true); }, 5000);
+    }
+  } else {
+    stopResultsAutoRefresh();
+  }
+}
+
+function updateResultsTimestamp() {
+  const el = document.getElementById('results-last-update');
+  if (!el || !resultsLastUpdated) return;
+  const seconds = Math.floor((Date.now() - resultsLastUpdated) / 1000);
+  el.textContent = seconds < 5 ? 'Gerade aktualisiert' : `Vor ${seconds}s aktualisiert`;
+}
+
+// Update timestamp display every second (independent of refresh)
+setInterval(updateResultsTimestamp, 1000);
+
+async function renderResultsTab(silent = false) {
+  const el = document.getElementById('results-content');
+  if (!currentQuizId) {
+    stopResultsAutoRefresh();
+    el.innerHTML = `<div class="no-quiz-hint">👆 Bitte oben ein Quiz auswählen.</div>`;
+    return;
+  }
+  if (!silent) el.innerHTML = '<div class="empty-state">⏳ Lade...</div>';
+
+  let data;
+  try {
+    data = await (await api(`/results?quiz_id=${currentQuizId}`)).json();
+  } catch (e) {
+    if (!silent) el.innerHTML = '<div class="empty-state">⚠️ Fehler beim Laden</div>';
+    return;
+  }
+
+  resultsLastUpdated = Date.now();
+  const quiz = data.quiz;
+  const now = new Date();
+  const dl = quiz.deadline ? new Date(quiz.deadline) : null;
+  const dlPassed = dl && now > dl;
+  const published = !!quiz.results_published;
+
+  // Publish box
+  let publishBox = '';
+  if (published) {
+    publishBox = `<div class="publish-box done">
+      <div class="publish-box-text"><h3>✅ Ergebnisse veröffentlicht</h3><p>Teilnehmer können ihr Ergebnis jetzt sehen.</p></div>
+    </div>`;
+  } else {
+    const canPublish = dlPassed || !dl;
+    publishBox = `<div class="publish-box">
+      <div class="publish-box-text">
+        <h3>🏁 Ergebnisse auswerten & veröffentlichen</h3>
+        <p>Wertet Schätzfragen aus, markiert Gewinner und macht Ergebnisse für Teilnehmer sichtbar.</p>
+        ${dl ? `<div class="deadline-info">Deadline: ${dl.toLocaleString('de-DE')} – ${dlPassed ? '⏰ Abgelaufen' : '🟢 Läuft noch'}</div>` : '<div class="deadline-info">Keine Deadline gesetzt</div>'}
+      </div>
+      <button class="btn ${canPublish ? 'btn-warning' : 'btn-secondary'}" onclick="publishResults(${quiz.id})" ${canPublish ? '' : ''}>
+        🏁 Jetzt auswerten
+      </button>
+    </div>`;
+  }
+
+  const autoChecked = resultsAutoRefreshInterval ? 'checked' : '';
+  const header = `<div class="section-header" style="align-items:center">
+    <h2>Ergebnisse</h2>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span id="results-last-update" style="font-size:.78rem;color:var(--text-muted)"></span>
+      <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer;user-select:none">
+        <input type="checkbox" id="auto-refresh-toggle" ${autoChecked} onchange="toggleResultsAutoRefresh()" style="cursor:pointer">
+        Auto-Refresh
+      </label>
+      <button class="btn btn-secondary btn-sm" onclick="renderResultsTab()">🔄</button>
+    </div>
+  </div>`;
+
+  if (data.results.length === 0) { el.innerHTML = publishBox + header + '<div class="empty-state">📊 Noch keine Teilnehmer.</div>'; updateResultsTimestamp(); return; }
+
+  data.results.sort((a,b) => (b.score/(b.scorable_total||1)) - (a.score/(a.scorable_total||1)));
+
+  const rows = data.results.map(r => {
+    const pct = r.scorable_total ? Math.round(r.score/r.scorable_total*100) : null;
+    const dots = r.detail.map(d => {
+      if (d.type === 'estimation') return `<div class="answer-dot estimation" title="${escHtml(d.question)}: ${d.number_answer??'–'}"></div>`;
+      if (d.type === 'free_text') return `<div class="answer-dot freetext" title="${escHtml(d.question)}: ${escHtml(d.text_answer||'–')}"></div>`;
+      return `<div class="answer-dot ${d.answered?(d.is_correct?'correct':'wrong'):'unanswered'}" title="${escHtml(d.question)}"></div>`;
+    }).join('');
+    const freeTextItems = r.detail.filter(d => d.type==='free_text' && d.answered);
+    const freeHtml = freeTextItems.length ? `<div style="font-size:.82rem;margin-top:8px;color:var(--text-muted)">${freeTextItems.map(d=>`${escHtml(d.question)}: <strong style="color:var(--text)">${escHtml(d.text_answer||'–')}</strong>`).join(' &nbsp;·&nbsp; ')}</div>` : '';
+    const estItems = r.detail.filter(d => d.type==='estimation' && d.answered);
+    const estHtml = estItems.length ? `<div style="font-size:.82rem;margin-top:6px">${estItems.map(d=>`<span style="color:var(--text-muted)">${escHtml(d.question)}:</span> <strong class="${d.is_correct===1?'est-winner':''}">${d.number_answer??'–'}</strong>${d.deviation!=null?' <span style="color:var(--text-muted)">(Δ${d.deviation})</span>':''}${d.is_correct===1?' 🏆':''}`).join(' &nbsp;·&nbsp; ')}</div>` : '';
+
+    const displayName = r.alias
+      ? `<div class="result-label">${escHtml(r.alias)}${r.label ? ` <span style="color:var(--text-muted);font-weight:400;font-size:.85rem">(${escHtml(r.label)})</span>` : ''}</div>`
+      : `<div class="result-label">${r.label ? escHtml(r.label) : '<span style="color:var(--text-muted)">Ohne Alias</span>'}</div>`;
+
+    return `<div class="result-row">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>${displayName}<div class="result-token">${r.token}</div></div>
+        <div class="result-score">${r.scorable_total?`${r.score} / ${r.scorable_total}`:''}<small>${pct!=null?pct+'% · ':''}${r.answered_count}/${r.total} beantwortet</small></div>
+      </div>
+      <div class="answer-dots">${dots}</div>
+      ${freeHtml}${estHtml}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = publishBox + header + rows;
+  updateResultsTimestamp();
+}
+
+async function publishResults(quizId) {
+  if (!confirm('Ergebnisse jetzt auswerten und für alle Teilnehmer veröffentlichen? Dies kann nicht rückgängig gemacht werden.')) return;
+  await api(`/quizzes/${quizId}/publish`, { method: 'POST' });
+  renderResultsTab();
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target===m) m.classList.remove('open'); }));
+
+function escHtml(str) { return String(str||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>
