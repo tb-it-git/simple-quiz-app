@@ -14,15 +14,15 @@ COPY public/ ./public/
 RUN mkdir -p /data
 
 # Expose port
-EXPOSE 2000
+EXPOSE 3000
 
 # Environment variables (can be overridden at runtime)
-ENV PORT=2000
+ENV PORT=3000
 ENV DB_PATH=/data/quiz.db
 ENV ADMIN_SECRET=admin1234
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s \
-  CMD wget -qO- http://localhost:2000/api/quiz/validate?token=health || exit 1
+  CMD wget -qO- http://localhost:3000/api/quiz/validate?token=health || exit 1
 
 CMD ["node", "src/server.js"]
